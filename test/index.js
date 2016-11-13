@@ -7,29 +7,53 @@ const fs = require('fs')
 const path = require('path')
 const watch = require('watch')
 // const modulesPlugin = require('babel-plugin-transform-es2015-modules-commonjs')
+const { spawnSync } = require('child_process')
 
 require('babel-register')
 
 const pluginPath = require.resolve('../src')
 
 const write = (...args) => process.stdout.write(...args)
+const log = (...args) => console.log(...args)
 
 function runTest(dir) {
-  const output = babel.transformFileSync(path.join(dir.path, 'input.js'), {
+  const expectedCodePath = path.join(dir.path, 'expected_code.js')
+  const expectedOutputPath = path.join(dir.path, 'expected_output.txt')
+  const inputPath = path.join(dir.path, 'input.js')
+
+  const expectedCode = fs.readFileSync(expectedCodePath, 'utf-8')
+  const expectedOutput = fs.readFileSync(expectedOutputPath, 'utf-8')
+  const output = babel.transformFileSync(inputPath, {
     plugins: [pluginPath],
   })
 
-  const expected = fs.readFileSync(path.join(dir.path, 'expected.js'), 'utf-8')
 
-  write(chalk.bgWhite.black(dir.name))
-  write('\n\n')
+  log(chalk.bgWhite.black(dir.name))
 
-  const diffs = diff.diffTrimmedLines(expected, output.code, {
+  const diffs = diff.diffTrimmedLines(expectedCode, output.code, {
     ignoreWhitespace: true,
     newlineIsToken: true,
   })
   if (diffs.length === 1 && (!diffs[0].added && !diffs[0].removed)) {
-    write(chalk.white(output.code))
+    log(chalk.white(output.code))
+
+    const { stdout, stderr } = spawnSync('babel-node', [
+      '--plugins', 'transform-es2015-modules-commonjs',
+      expectedCodePath,
+    ])
+    const stdoutStr = stdout.toString()
+    const stderrStr = stderr.toString()
+
+    if (stderrStr) {
+      log(chalk.red(stderrStr))
+    }
+    if (stdoutStr) {
+      if (stdoutStr === expectedOutput) {
+        log(chalk.green(stdoutStr))
+      } else {
+        log(chalk.red(`Expected "${expectedOutput}", got "${stdoutStr}"`))
+      }
+    }
   } else {
     diffs.forEach((part) => {
       let value = part.value
@@ -38,8 +62,7 @@ function runTest(dir) {
       } else if (part.removed) {
         value = chalk.red(part.value)
       }
-      write(value)
-      write('\n')
+      log(value)
     })
   }
   write('\n\n\n')

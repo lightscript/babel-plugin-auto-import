@@ -13,3 +13,13 @@ import $ from 'jquery'
 import _$1_ from 'components/*'
 import _$1_Page from 'components/pages/*'
 import _$1__$2_Page from 'components/app/*/pages/*'
+
+
+TODO
+
+- [ ] sibling .imports file
+- [ ] root directory .imports file
+- [ ] combine recursive .imports files
+- [ ] templates with *
+- [ ] sourcemaps
+- [ ] ignore option

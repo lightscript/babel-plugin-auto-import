@@ -1,43 +1,16 @@
-/* eslint-disable no-undef, no-unused-expressions, no-underscore-dangle */
+/* eslint-disable no-undef, no-unused-expressions */
+require('./chai')
+require('./helpers')
 const path = require('path')
-const fs = require('fs')
-const babel = require('babel-core')
-const { spawnSync } = require('child_process')
 
-const pluginPath = require.resolve('../src')
-
-const diffOpts = {
-  relaxedSpace: true,
-  context: 2,
-}
-
-
-Assertion.addMethod('compileTo', function compileTo(expectedPath) {
-  const inputPath = this._obj
-
-  const expectedCode = fs.readFileSync(expectedPath, 'utf-8')
-  const output = babel.transformFileSync(inputPath, {
-    plugins: [pluginPath],
-  })
-
-  expect(output.code).not.differentFrom(expectedCode, diffOpts)
-})
-
-Assertion.addMethod('executeTo', function executeTo(expected) {
-  const compiledPath = this._obj
-
-  const { stdout, stderr } = spawnSync('babel-node', [
-    '--plugins', 'transform-es2015-modules-commonjs',
-    compiledPath,
-  ])
-
-  expect(stderr.toString()).to.be.empty
-  expect(stdout.toString()).not.differentFrom(expected, diffOpts)
-})
+const inputPath = folder =>
+  path.resolve('./test/fixtures', folder, 'input.js')
+const expectedPath = folder =>
+  path.resolve('./test/fixtures', folder, 'expected.js')
 
 describe('basic', () => {
-  const input = path.resolve('./test/fixtures/basic/input.js')
-  const expected = path.resolve('./test/fixtures/basic/expected.js')
+  const input = inputPath('basic')
+  const expected = expectedPath('basic')
 
   it('compiles', () => {
     expect(input).to.compileTo(expected)
@@ -50,8 +23,8 @@ describe('basic', () => {
 
 describe('nested', () => {
   describe('grandchild', () => {
-    const input = path.resolve('./test/fixtures/nested/child/grandchild/input.js')
-    const expected = path.resolve('./test/fixtures/nested/child/grandchild/expected.js')
+    const input = inputPath('nested/child/grandchild')
+    const expected = expectedPath('nested/child/grandchild')
 
     it('compiles', () => {
       expect(input).to.compileTo(expected)
@@ -63,8 +36,8 @@ describe('nested', () => {
   })
 
   describe('child', () => {
-    const input = path.resolve('./test/fixtures/nested/child/input.js')
-    const expected = path.resolve('./test/fixtures/nested/child/expected.js')
+    const input = inputPath('nested/child')
+    const expected = expectedPath('nested/child')
 
     it('compiles', () => {
       expect(input).to.compileTo(expected)
@@ -77,8 +50,8 @@ describe('nested', () => {
 })
 
 describe('npm_modules', () => {
-  const input = path.resolve('./test/fixtures/npm_modules/input.js')
-  const expected = path.resolve('./test/fixtures/npm_modules/expected.js')
+  const input = inputPath('npm_modules')
+  const expected = expectedPath('npm_modules')
 
   it('compiles', () => {
     expect(input).to.compileTo(expected)

@@ -1,21 +1,6 @@
-import { dirname, basename, resolve } from 'path'
+import { dirname, resolve, relative, sep } from 'path'
 import fs from 'fs'
 
-const isIgnoredFile = (filename) => false  // TODO
-
-// TODO: build cache, do lots of relative imports...
-function getImports(babel, importsFile) {
-  const t = babel.types
-  const importsBody = babel.transformFileSync(importsFile).ast.program.body
-
-  const importNodes = importsBody
-    .filter(node => node.type === 'ImportDeclaration')
-    // strip SourceLocation stuff so Babel doesn't get confused...
-    // TODO: figure out how to make it work with sourcemaps
-    .map(node => t.importDeclaration(node.specifiers, node.source))
-
-  return importNodes
-}
 
 function fileExists(filename) {
   try {
@@ -26,25 +11,67 @@ function fileExists(filename) {
   }
 }
 
-export default (babel) => ({
+function loadImportsFile(babel, importsFileName) {
+  if (!fileExists(importsFileName)) return []
+  const t = babel.types
+  const importsBody = babel.transformFileSync(importsFileName).ast.program.body
+
+  const importNodes = importsBody
+    .filter(node => node.type === 'ImportDeclaration')
+    // strip SourceLocation stuff so Babel doesn't get confused...
+    // TODO: figure out how to make it work with sourcemaps
+    .map(node => t.importDeclaration(node.specifiers, node.source))
+
+  return importNodes
+}
+
+function dotSlash(pathname) {
+  // starts with './' or '../'
+  if (/^\.\.?\//.test(pathname)) return pathname
+
+  return `./${pathname}`
+}
+
+// Object<filepath, Array<ImportNode>>
+const importsCache = {}
+
+
+function getImportsFiles(babel, targetFilePath) {
+  const t = babel.types
+  const rootDir = process.cwd()
+  const dirs = relative(rootDir, targetFilePath).split(sep)
+
+  return dirs.reduce((importNodes, _dirname, i) => {
+    const dir = resolve(rootDir, ...dirs.slice(0, i))
+    const importsFile = resolve(dir, '.imports.js')
+
+    if (!importsCache[importsFile]) {
+      importsCache[importsFile] = loadImportsFile(babel, importsFile)
+    }
+
+    const relativeImports = importsCache[importsFile].map((node) => {
+      const pathFromImportFile = node.source.value
+      const fullImportPath = resolve(dirname(importsFile), pathFromImportFile)
+      const relativePath = relative(dirname(targetFilePath), fullImportPath)
+      const dotSlashRelativePath = dotSlash(relativePath)
+
+      return t.importDeclaration(
+        node.specifiers,
+        t.stringLiteral(dotSlashRelativePath),
+      )
+    })
+
+    return importNodes.concat(relativeImports)
+  }, [])
+}
+
+export default babel => ({
   visitor: {
     Program(path, state) {
-      const { types: t } = babel
-      const filename = state.file.opts.filename;
+      const filename = state.file.opts.filename
 
-      if (isIgnoredFile(filename)) {
-        console.log('not importing in this file...', filename)
-        return
-      }
-
-      const importsFile = resolve(dirname(filename), '.imports.js')
-      if (!fileExists(importsFile)) {
-        console.log('no imports file relative to ', filename)
-        return
-      }
-
-      const importNodes = getImports(babel, importsFile)
+      const importNodes = getImportsFiles(babel, filename)
       path.unshiftContainer('body', importNodes)
-    }
-  }
+    },
+  },
 })

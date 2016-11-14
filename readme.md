@@ -17,9 +17,10 @@ import _$1__$2_Page from 'components/app/*/pages/*'
 
 TODO
 
-- [ ] sibling .imports file
-- [ ] root directory .imports file
-- [ ] combine recursive .imports files
+- [x] sibling .imports file
+- [x] root directory .imports file
+- [x] combine recursive .imports files
+- [ ] node_modules
 - [ ] templates with *
 - [ ] sourcemaps
 - [ ] ignore option

@@ -1,5 +1,1 @@
-
-export default function main() {
-  return hello() + howdy()
-}
-console.log(main());
+console.log([hello(), howdy()].join(' '));

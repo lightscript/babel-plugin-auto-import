@@ -21,6 +21,6 @@ TODO
 - [x] root directory .imports file
 - [x] combine recursive .imports files
 - [x] node_modules
-- [ ] templates with *
+- [x] templates with *
 - [ ] sourcemaps
 - [ ] ignore option

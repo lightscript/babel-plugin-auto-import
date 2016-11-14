@@ -1,4 +1,5 @@
 import { dirname, resolve, relative, sep } from 'path'
+import glob from 'glob'
 import fs from 'fs'
 
 
@@ -20,8 +21,40 @@ function loadImportsFile(babel, importsFileName) {
     .filter(node => node.type === 'ImportDeclaration')
     // strip SourceLocation stuff so Babel doesn't get confused...
     // TODO: figure out how to make it work with sourcemaps
-    .map(node => t.importDeclaration(node.specifiers, node.source))
+    .map((node) => {
+      const source = node.source.value
+      if (source.indexOf('*') === -1) {
+        return [t.importDeclaration(node.specifiers, t.stringLiteral(source))]
+      }
+      if (source.match(/\*/g).length > 1) throw new Error('Only one * for now')
 
+      // templates
+      const sourceGlob = resolve(dirname(importsFileName), source)
+      const filepaths = glob.sync(sourceGlob)
+      return filepaths.map((filepath) => {
+        const [_match, beforeStar, afterStar] = sourceGlob.match(/(.*)\*(.*)/)
+        const starMatch = filepath
+          .replace(new RegExp(`^${beforeStar}`), '')
+          .replace(new RegExp(`${afterStar}$`), '')
+
+        const specifiers = node.specifiers.map((specifier) => {
+          const name = specifier.local.name.replace(/_\$\d+_/, starMatch)
+          if (t.isImportDefaultSpecifier(specifier)) {
+            return t.importDefaultSpecifier(t.identifier(name))
+          } else if (t.isImportNamespaceSpecifier(specifier)) {
+            return t.importNamespaceSpecifier(t.identifier(name))
+          } else if (t.isImportSpecifier(specifier)) {
+            const imported = specifier.imported.name
+              .replace(/_\$\d+_/, starMatch)
+            return t.importSpecifier(t.identifier(name), t.identifier(imported))
+          }
+          return t.assertImportSpecifier(specifier)
+        })
+        const sourceName = source.replace('*', starMatch)
+        return t.importDeclaration(specifiers, t.stringLiteral(sourceName))
+      })
+    })
+    .reduce((a, b) => a.concat(...b), [])
   return importNodes
 }
 

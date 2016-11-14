@@ -61,3 +61,16 @@ describe('npm_modules', () => {
     expect(expected).to.executeTo('---hello')
   })
 })
+
+describe('templates', () => {
+  const input = inputPath('templates')
+  const expected = expectedPath('templates')
+
+  it('compiles', () => {
+    expect(input).to.compileTo(expected)
+  })
+
+  it('executes', () => {
+    expect(expected).to.executeTo('aOne aTwo bOne bTwo cOne cTwo')
+  })
+})

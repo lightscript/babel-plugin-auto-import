@@ -28,9 +28,9 @@
     "eslint-plugin-jsx-a11y": "^2.2.3",
     "eslint-plugin-react": "^6.6.0",
     "find-root": "^1.0.0",
+    "glob": "^7.1.1",
     "lodash": "^4.16.6",
     "mocha": "^3.1.2",
-    "node-glob": "^1.2.0",
     "pad-left": "^2.1.0",
     "sinon": "^1.17.6",
     "watch": "^1.0.1"

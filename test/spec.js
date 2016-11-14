@@ -75,3 +75,16 @@ describe('nested', () => {
     })
   })
 })
+
+describe('npm_modules', () => {
+  const input = path.resolve('./test/fixtures/npm_modules/input.js')
+  const expected = path.resolve('./test/fixtures/npm_modules/expected.js')
+
+  it('compiles', () => {
+    expect(input).to.compileTo(expected)
+  })
+
+  it('executes', () => {
+    expect(expected).to.executeTo('---hello')
+  })
+})

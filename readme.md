@@ -20,7 +20,7 @@ TODO
 - [x] sibling .imports file
 - [x] root directory .imports file
 - [x] combine recursive .imports files
-- [ ] node_modules
+- [x] node_modules
 - [ ] templates with *
 - [ ] sourcemaps
 - [ ] ignore option

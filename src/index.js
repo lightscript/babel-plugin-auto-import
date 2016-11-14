@@ -25,18 +25,20 @@ function loadImportsFile(babel, importsFileName) {
   return importNodes
 }
 
-function dotSlash(pathname) {
-  // starts with './' or '../'
-  if (/^\.\.?\//.test(pathname)) return pathname
+function dotSlash(pathname, pathFromImportFile) {
+  if (pathFromImportFile.startsWith('./')) {
+    if (!pathname.startsWith('.')) {
+      return `./${pathname}`
+    }
+  }
 
-  return `./${pathname}`
+  return pathname
 }
 
 // Object<filepath, Array<ImportNode>>
 const importsCache = {}
 
-
-function getImportsFiles(babel, targetFilePath) {
+function getImports(babel, targetFilePath) {
   const t = babel.types
   const rootDir = process.cwd()
   const dirs = relative(rootDir, targetFilePath).split(sep)
@@ -53,7 +55,7 @@ function getImportsFiles(babel, targetFilePath) {
       const pathFromImportFile = node.source.value
       const fullImportPath = resolve(dirname(importsFile), pathFromImportFile)
       const relativePath = relative(dirname(targetFilePath), fullImportPath)
-      const dotSlashRelativePath = dotSlash(relativePath)
+      const dotSlashRelativePath = dotSlash(relativePath, pathFromImportFile)
 
       return t.importDeclaration(
         node.specifiers,
@@ -70,7 +72,7 @@ export default babel => ({
     Program(path, state) {
       const filename = state.file.opts.filename
 
-      const importNodes = getImportsFiles(babel, filename)
+      const importNodes = getImports(babel, filename)
       path.unshiftContainer('body', importNodes)
     },
   },

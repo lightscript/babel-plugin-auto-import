@@ -1,4 +1,4 @@
-import { basename, dirname, resolve, relative, sep, isAbsolute } from 'path'
+import { basename, dirname, resolve, relative, sep, isAbsolute, extname } from 'path'
 import glob from 'glob'
 import fs from 'fs'
 
@@ -91,6 +91,13 @@ function loadImportsFile(babel, importsFile) {
   return importNodes
 }
 
+function modulePathsMatch(importPath, filePath) {
+  // TODO: be less hacky, proper handling of extensions, test for custom exts
+  if (importPath === filePath) return true
+  if (importPath + extname(filePath) === filePath) return true
+  return false
+}
+
 // Object<absoluteFilepath, Array<ImportNode<translatedSpecifiers, absoluteSourcePath>>>
 const importsCache = {}
 
@@ -109,6 +116,7 @@ function getImports(babel, targetFilePath) {
 
     const relativeImports = importsCache[importsFile].map((node) => {
       const relativePath = relativeSourcePath(node.source.value, targetFilePath)
+      if (modulePathsMatch(node.source.value, targetFilePath)) return t.noop()
 
       return t.importDeclaration(
         node.specifiers,

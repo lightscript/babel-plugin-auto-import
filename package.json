@@ -5,7 +5,7 @@
   "author": "Alex Rattray <rattray.alex@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "test": "mocha --watch"
+    "test": "mocha test/spec.js"
   },
   "dependencies": {
     "assert": "^1.4.1",
@@ -28,6 +28,7 @@
     "eslint-plugin-jsx-a11y": "^2.2.3",
     "eslint-plugin-react": "^6.6.0",
     "find-root": "^1.0.0",
+    "fs-extra": "^1.0.0",
     "glob": "^7.1.1",
     "lodash": "^4.16.6",
     "mocha": "^3.1.2",

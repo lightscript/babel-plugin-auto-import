@@ -3,74 +3,91 @@ require('./chai')
 require('./helpers')
 const path = require('path')
 
-const inputPath = folder =>
-  path.resolve('./test/fixtures', folder, 'input.js')
-const expectedPath = folder =>
-  path.resolve('./test/fixtures', folder, 'expected.js')
+const fixturePath = folder =>
+  path.resolve('./test/fixtures', folder)
+const compiledMain = (folder, ...subfolders) =>
+  path.resolve(fixturePath(folder), 'build', ...subfolders, 'main.js')
+const outPath = (folder, ...paths) =>
+  path.resolve(fixturePath(folder), 'out', ...paths)
 
-describe('basic', () => {
-  const input = inputPath('basic')
-  const expected = expectedPath('basic')
+describe('babel-plugin-auto-import', () => {
+  before(compilePlugin)
 
-  it('compiles', () => {
-    expect(input).to.compileTo(expected)
-  })
+  describe('basic', () => {
+    before(() => { compileFixtureOut(fixturePath('basic')) })
+    before(() => { compileFixtureBuild(fixturePath('basic')) })
 
-  it('executes', () => {
-    expect(expected).to.executeTo('hello howdy')
-  })
-})
+    it('adds imports to the top of main.js', () => {
+      const mainFile = file(outPath('basic', 'main.js'))
 
-describe('nested', () => {
-  describe('grandchild', () => {
-    const input = inputPath('nested/child/grandchild')
-    const expected = expectedPath('nested/child/grandchild')
+      expect(mainFile).to.contain("import hello from './hello'")
+      expect(mainFile).to.contain("import howdy from './howdy'")
+    })
 
-    it('compiles', () => {
-      expect(input).to.compileTo(expected)
+    it('does not add a file to itself', () => {
+      const helloFile = file(outPath('basic', 'hello.js'))
+
+      expect(helloFile).to.contain("import howdy from './howdy'")
+      expect(helloFile).not.to.contain("import hello from './hello'")
     })
 
     it('executes', () => {
-      expect(expected).to.executeTo('hello howdy child grandchild')
+      expect(compiledMain('basic')).to.executeTo('hello howdy')
     })
   })
 
-  describe('child', () => {
-    const input = inputPath('nested/child')
-    const expected = expectedPath('nested/child')
+  describe('nested', () => {
+    before(() => { compileFixtureOut(fixturePath('nested')) })
+    before(() => { compileFixtureBuild(fixturePath('nested')) })
 
-    it('compiles', () => {
-      expect(input).to.compileTo(expected)
+    describe('grandchild', () => {
+      it('executes', () => {
+        expect(compiledMain('nested', 'child', 'grandchild'))
+          .to.executeTo('hello howdy child grandchild')
+      })
     })
+
+    describe('child', () => {
+      const mainFile = file(outPath('nested', 'child', 'main.js'))
+
+      it('contains imports from its own dir', () => {
+        expect(mainFile)
+          .to.contain("import child from './child'")
+      })
+
+      it('contains imports from parent dir', () => {
+        expect(mainFile)
+          .to.contain("import howdy from '../howdy'")
+      })
+
+      it('does not contain grandchild imports', () => {
+        expect(mainFile)
+          .not.to.contain('grandchild.js')
+      })
+
+      it('executes', () => {
+        expect(compiledMain('nested', 'child'))
+          .to.executeTo('hello howdy child')
+      })
+    })
+  })
+
+  describe('npm_modules', () => {
+    before(() => { compileFixtureOut(fixturePath('npm_modules')) })
+    before(() => { compileFixtureBuild(fixturePath('npm_modules')) })
 
     it('executes', () => {
-      expect(expected).to.executeTo('hello howdy child')
+      expect(compiledMain('npm_modules')).to.executeTo('---hello')
     })
   })
-})
 
-describe('npm_modules', () => {
-  const input = inputPath('npm_modules')
-  const expected = expectedPath('npm_modules')
+  describe('templates', () => {
+    before(() => { compileFixtureOut(fixturePath('templates')) })
+    before(() => { compileFixtureBuild(fixturePath('templates')) })
 
-  it('compiles', () => {
-    expect(input).to.compileTo(expected)
-  })
-
-  it('executes', () => {
-    expect(expected).to.executeTo('---hello')
-  })
-})
-
-describe('templates', () => {
-  const input = inputPath('templates')
-  const expected = expectedPath('templates')
-
-  it('compiles', () => {
-    expect(input).to.compileTo(expected)
-  })
-
-  it('executes', () => {
-    expect(expected).to.executeTo('aOne aTwo bOne bTwo cOne cTwo')
+    it('executes', () => {
+      expect(compiledMain('templates'))
+        .to.executeTo('aOne aTwo bOne bTwo cOne cTwo')
+    })
   })
 })

@@ -1,6 +1,9 @@
-import { dirname, resolve, relative, sep } from 'path'
+import { basename, dirname, resolve, relative, sep, isAbsolute } from 'path'
 import glob from 'glob'
 import fs from 'fs'
+
+const IMPORTS_FILENAME = '.imports.js'
+const SPECIFIER_TEMPLATE = /_\$\d+_/
 
 
 function fileExists(filename) {
@@ -12,63 +15,83 @@ function fileExists(filename) {
   }
 }
 
-function loadImportsFile(babel, importsFileName) {
-  if (!fileExists(importsFileName)) return []
+function processImportTemplate(babel, importsFileName, node, fullSource) {
   const t = babel.types
-  const importsBody = babel.transformFileSync(importsFileName).ast.program.body
 
-  const importNodes = importsBody
-    .filter(node => node.type === 'ImportDeclaration')
-    // strip SourceLocation stuff so Babel doesn't get confused...
-    // TODO: figure out how to make it work with sourcemaps
-    .map((node) => {
-      const source = node.source.value
-      if (source.indexOf('*') === -1) {
-        return [t.importDeclaration(node.specifiers, t.stringLiteral(source))]
+  // go from "/Users/who/blah/**/*.js" to a list of files
+  const filepaths = glob.sync(fullSource)
+
+  // create an import statement for each file
+  return filepaths.map((filepath) => {
+    const fileName = basename(filepath)
+    const fileNameWithoutExt = fileName.replace(/^\./, '').split('.')[0]
+
+    const specifierTemplate = name =>
+      name.replace(SPECIFIER_TEMPLATE, fileNameWithoutExt)
+
+    // go from `_$1_Main, * as _$2_Stuff` to `filenameMain, * as filenameStuff`
+    const specifiers = node.specifiers.map((specifier) => {
+      const name = specifierTemplate(specifier.local.name)
+
+      if (t.isImportDefaultSpecifier(specifier)) {
+        return t.importDefaultSpecifier(t.identifier(name))
+      } else if (t.isImportNamespaceSpecifier(specifier)) {
+        return t.importNamespaceSpecifier(t.identifier(name))
+      } else if (t.isImportSpecifier(specifier)) {
+        const imported = specifierTemplate(specifier.imported.name)
+        return t.importSpecifier(t.identifier(name), t.identifier(imported))
       }
-      if (source.match(/\*/g).length > 1) throw new Error('Only one * for now')
-
-      // templates
-      const sourceGlob = resolve(dirname(importsFileName), source)
-      const filepaths = glob.sync(sourceGlob)
-      return filepaths.map((filepath) => {
-        const [_match, beforeStar, afterStar] = sourceGlob.match(/(.*)\*(.*)/)
-        const starMatch = filepath
-          .replace(new RegExp(`^${beforeStar}`), '')
-          .replace(new RegExp(`${afterStar}$`), '')
-
-        const specifiers = node.specifiers.map((specifier) => {
-          const name = specifier.local.name.replace(/_\$\d+_/, starMatch)
-          if (t.isImportDefaultSpecifier(specifier)) {
-            return t.importDefaultSpecifier(t.identifier(name))
-          } else if (t.isImportNamespaceSpecifier(specifier)) {
-            return t.importNamespaceSpecifier(t.identifier(name))
-          } else if (t.isImportSpecifier(specifier)) {
-            const imported = specifier.imported.name
-              .replace(/_\$\d+_/, starMatch)
-            return t.importSpecifier(t.identifier(name), t.identifier(imported))
-          }
-          return t.assertImportSpecifier(specifier)
-        })
-        const sourceName = source.replace('*', starMatch)
-        return t.importDeclaration(specifiers, t.stringLiteral(sourceName))
-      })
+      return t.assertImportSpecifier(specifier)
     })
-    .reduce((a, b) => a.concat(...b), [])
-  return importNodes
+
+    return t.importDeclaration(specifiers, t.stringLiteral(filepath))
+  })
 }
 
-function dotSlash(pathname, pathFromImportFile) {
-  if (pathFromImportFile.startsWith('./')) {
-    if (!pathname.startsWith('.')) {
-      return `./${pathname}`
-    }
-  }
+function isNodeModule(source) {
+  // TODO: improve, be less hacky
+  // TODO: assert that its a child of node_modules folder...
+  return !(source.startsWith('.') || isAbsolute(source))
+}
 
+function fullSourcePath(importsFile, source) {
+  if (isNodeModule(source)) return source
+
+  return resolve(dirname(importsFile), source)
+}
+
+function relativeSourcePath(fullImportPath, targetFilePath) {
+  if (isNodeModule(fullImportPath)) return fullImportPath
+
+  const pathname = relative(dirname(targetFilePath), fullImportPath)
+
+  if (!pathname.startsWith('.')) {
+    return `./${pathname}`
+  }
   return pathname
 }
 
-// Object<filepath, Array<ImportNode>>
+function loadImportsFile(babel, importsFile) {
+  if (!fileExists(importsFile)) return []
+  const t = babel.types
+  const importsBody = babel.transformFileSync(importsFile).ast.program.body
+
+  const importNodes = importsBody
+    .filter(node => t.isImportDeclaration(node))
+    .map((node) => {
+      const fullSource = fullSourcePath(importsFile, node.source.value)
+
+      if (glob.hasMagic(fullSource)) {
+        return processImportTemplate(babel, importsFile, node, fullSource)
+      }
+
+      return [t.importDeclaration(node.specifiers, t.stringLiteral(fullSource))]
+    })
+    .reduce((a, b) => a.concat(...b), []) // flatten
+  return importNodes
+}
+
+// Object<absoluteFilepath, Array<ImportNode<translatedSpecifiers, absoluteSourcePath>>>
 const importsCache = {}
 
 function getImports(babel, targetFilePath) {
@@ -78,21 +101,18 @@ function getImports(babel, targetFilePath) {
 
   return dirs.reduce((importNodes, _dirname, i) => {
     const dir = resolve(rootDir, ...dirs.slice(0, i))
-    const importsFile = resolve(dir, '.imports.js')
+    const importsFile = resolve(dir, IMPORTS_FILENAME)
 
     if (!importsCache[importsFile]) {
       importsCache[importsFile] = loadImportsFile(babel, importsFile)
     }
 
     const relativeImports = importsCache[importsFile].map((node) => {
-      const pathFromImportFile = node.source.value
-      const fullImportPath = resolve(dirname(importsFile), pathFromImportFile)
-      const relativePath = relative(dirname(targetFilePath), fullImportPath)
-      const dotSlashRelativePath = dotSlash(relativePath, pathFromImportFile)
+      const relativePath = relativeSourcePath(node.source.value, targetFilePath)
 
       return t.importDeclaration(
         node.specifiers,
-        t.stringLiteral(dotSlashRelativePath),
+        t.stringLiteral(relativePath),
       )
     })
 

@@ -11,16 +11,12 @@ import $ from 'jquery'
 
 // templates
 import _$1_ from 'components/*'
-import _$1_Page from 'components/pages/*'
-import _$1__$2_Page from 'components/app/*/pages/*'
+import _$2_Page from 'components/pages/*'
+import * as _$3_ from 'blah/*'
+import { _$4_ } from 'foo/**/*.js'
 ```
 
 TODO
 
-- [x] sibling .imports file
-- [x] root directory .imports file
-- [x] combine recursive .imports files
-- [x] node_modules
-- [x] templates with *
-- [ ] sourcemaps
 - [ ] ignore option
+- [ ] inherit/extend npm package

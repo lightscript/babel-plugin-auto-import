@@ -1,6 +1,6 @@
 node_modules
 
-src/compiled.js
+dist
 
 test/fixtures/**/out/
 test/fixtures/**/build/

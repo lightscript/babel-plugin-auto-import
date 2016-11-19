@@ -12,7 +12,7 @@ const diffOpts = {
 
 global.compilePlugin = () => {
   const srcPath = path.resolve('./src/index.js')
-  const outPath = path.resolve('./src/compiled.js')
+  const outPath = path.resolve('./dist/index.js')
   removeSync(outPath)
 
   const { stderr } = spawnSync('babel', [
@@ -34,7 +34,7 @@ global.compileFixtureOut = (fixtureFolderPath) => {
   const { stdout, stderr } = spawnSync('babel', [
     srcPath,
     '--out-dir', outPath,
-    '--plugins', path.resolve('./src/compiled.js'),
+    '--plugins', path.resolve('./dist/index.js'),
     '--source-maps',
     '--quiet',
   ])
